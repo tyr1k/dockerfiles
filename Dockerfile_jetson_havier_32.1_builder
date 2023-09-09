@@ -1,0 +1,114 @@
+FROM arm64v8/ubuntu:18.04
+WORKDIR /opt
+ENV  OPENCV_RELEASE_TAG 4.5.3
+RUN apt-get update && apt-get install -y lbzip2 wget unzip jq libgtk-3-dev libjpeg-dev libgles2-mesa-dev libgstreamer1.0-dev build-essential git automake autoconf gfortran libdc1394-22-dev libeigen3-dev libjpeg-dev libjpeg8-dev \
+  libgtk2.0-dev libavcodec-dev libavformat-dev libswscale-dev libwebp-dev libtbb2 libtbb-dev gstreamer1.0-libav liblapack-dev gstreamer1.0-doc libtool file libcanberra-gtk3-module libgstreamer-plugins-good1.0-dev libjpeg-turbo8-dev libtiff-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good pkg-config libgstreamer1.0-0 gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly libgstreamer-plugins-base1.0-dev ffmpeg zlib1g-dev libatlas-base-dev  libavformat-dev libavresample-dev liblapacke-dev libpng-dev libpostproc-dev libtesseract-dev \
+  gstreamer1.0-tools libzmq5 libgles2-mesa tar python3 libv4l-dev libxine2-dev libxvidcore-dev libx264-dev libgtkglext1 libgtkglext1-dev pkg-config ca-certificates openssl libssl-dev libelf-dev libzmq3-dev libegl1 binutils gcc-8 g++-8 && apt-get -qq clean && rm -rf /var/lib/apt/lists/* 
+
+RUN cd /tmp/ && wget -q https://developer.download.nvidia.com/embedded/L4T/r32_Release_v1.0/jax-tx2/BSP/JAX-TX2-Jetson_Linux_R32.1.0_aarch64.tbz2 \
+    &&  wget -q https://developer.download.nvidia.com/embedded/L4T/r32_Release_v1.0/jax-tx2/BSP/JAX-TX2-Tegra_Linux_Sample-Root-Filesystem_R32.1.0_aarch64.tbz2 \
+    && cd /tmp && tar xpf JAX-TX2-Jetson_Linux_R32.1.0_aarch64.tbz2 \
+    && cd /tmp/Linux_for_Tegra/rootfs/ && tar xfv /tmp/JAX-TX2-Tegra_Linux_Sample-Root-Filesystem_R32.1.0_aarch64.tbz2 \
+    && cd /tmp/Linux_for_Tegra && sed -i 's/\bsudo\b//g' apply_binaries.sh && ./apply_binaries.sh \
+    && cp -r -n /tmp/Linux_for_Tegra/rootfs/* / \
+    && rm -rf /tmp/*
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 10 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 10 && \
+    git clone -b v3.21.3 --depth 1 --recursive   https://gitlab.kitware.com/cmake/cmake.git && \
+    mkdir cmake/build && cd cmake/build && \
+    ../bootstrap && \
+    make -j6 && \
+    make install -j6 && \
+    rm -rf /opt/cmake
+RUN ln -s /usr/lib/aarch64-linux-gnu/tegra/libcuda.so.1.1 /usr/lib/aarch64-linux-gnu/tegra/libcuda.so.1 \
+    && echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/nvidia-tegra.conf && ldconfig \
+    && echo "/usr/lib/aarch64-linux-gnu/tegra-egl" >> /etc/ld.so.conf.d/nvidia-tegra.conf \
+    && echo "/usr/local/cuda-10.0/targets/aarch64-linux/lib" >> /etc/ld.so.conf.d/nvidia.conf \
+    && mkdir -p /var/nvidia/nvcam/settings/ \
+###need to found camera_overrides.ips
+    && cd /var/nvidia/nvcam/settings/ && wget http://af.niias:444/artifactory/General/ODU-ST/jetson/camera_overrides.isp \
+    && chmod 664 /var/nvidia/nvcam/settings/camera_overrides.isp && chown root:root /var/nvidia/nvcam/settings/camera_overrides.isp \
+    && cd /tmp/ && wget -q https://developer.download.nvidia.com/embedded/L4T/r32_Release_v1.0/jax-tx2/BSP/JAX-TX2-Tegra_Multimedia_API_R32.1.0_aarch64.tbz2 \
+    && cd /tmp/ &&  tar xf JAX-TX2-Tegra_Multimedia_API_R32.1.0_aarch64.tbz2 && cd tegra_multimedia_api/argus/cmake/ && cmake .. && make && make install && rm -rf /tmp/* 
+RUN /etc/systemd/nv.sh
+
+# ------------------------------------------------------------------
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 10 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 10 && \
+    git clone --depth 1 -b 4.5.3 https://github.com/opencv/opencv.git && \
+    git clone --depth 1 -b 4.5.3 https://github.com/opencv/opencv_contrib.git && \
+    cd opencv && \
+    mkdir build && \
+    cd build && \
+        cmake  -D BUILD_EXAMPLES=OFF \
+          -D BUILD_opencv_python2=OFF \
+          -D BUILD_opencv_python3=OFF \
+          -D BUILD_PERF_TESTS=OFF \
+          -D BUILD_TESTS=OFF \
+          -D BUILD_opencv_java=OFF \
+          -D CMAKE_BUILD_TYPE=RELEASE \
+          -D CMAKE_INSTALL_PREFIX=/usr/local \
+          -D CUDNN_INCLUDE_DIR=/usr/include/ \
+          -D EIGEN_INCLUDE_PATH=/usr/include/eigen3 \
+          -D WITH_EIGEN=ON \
+          -D ENABLE_NEON=ON \
+          -D OPENCV_ENABLE_NONFREE=ON \
+          -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules \
+          -D OPENCV_GENERATE_PKGCONFIG=ON \
+          -D WITH_CUDA=ON \ 
+          -D WITH_CUBLAS=ON \
+          -D WITH_CUDNN=ON \
+          -D WITH_GSTREAMER=ON \
+          -D WITH_GSTREAMER_0_10=OFF \
+          -D WITH_LIBV4L=ON \
+          -D WITH_OPENGL=ON \
+          -D WITH_OPENCL=OFF \
+          -D WITH_IPP=OFF \
+          -D WITH_TBB=ON \
+          -D CUDA_NVCC_FLAGS="--expt-relaxed-constexpr" \
+          -D BUILD_TIFF=ON .. && \
+          make -j6 &&\
+          make install -j6 && \
+        cd / && rm -rf /opt/opencv-${OPENCV_RELEASE_TAG} && \
+        rm -rf /opt/opencv_contrib-${OPENCV_RELEASE_TAG}
+RUN  touch /etc/ssh/ssh_known_hosts; \
+     chmod 600 /etc/ssh/ssh_known_hosts; \
+     chown root:root /etc/ssh/ssh_known_hosts && \
+     sed -i /^StrictHostKeyChecking/d /etc/ssh/ssh_config; \
+     echo StrictHostKeyChecking no >> /etc/ssh/ssh_config  && \
+    ssh-keyscan bb.niias > /etc/ssh/ssh_known_hosts
+    
+RUN --mount=type=ssh git clone -b release  --depth 1 --recursive \
+      ssh://git@bb.niias:7999/elsd/zcm.git && \
+      cd /opt/zcm && \ 
+      cd /opt/zcm && \ 
+     ./waf configure \
+                --use-inproc \
+                --use-ipc \
+                --use-udpm \
+                --use-udpd \
+                --use-udp \
+                --use-serial \
+                --use-zmq \
+                --use-third-party \
+                --use-elf \
+    &&./waf build \
+    && ./waf install \
+    && rm -rf /opt/zcm
+
+RUN git clone https://github.com/nlohmann/json.git -b v3.10.4 --depth 1 --recursive && \
+    mkdir json/build && cd json/build && \ 
+    cmake -DCMAKE_BUILD_TYPE="Release" -DJSON_BuildTests=OFF .. && \
+    make -j6  && \
+    make install -j6 && \
+    rm -rf /opt/json
+
+RUN git clone https://github.com/jbeder/yaml-cpp.git -b yaml-cpp-0.6.3 --depth 1 --recursive && \
+    mkdir yaml-cpp/build && \
+    cd yaml-cpp/build && \
+    cmake .. -DCMAKE_BUILD_TYPE="Release" -DYAML_BUILD_SHARED_LIBS=ON && \
+    make -j$(nproc) && \
+    make install -j$(nproc) && \
+    cd ../../ && \
+    rm -rf yaml-cpp
