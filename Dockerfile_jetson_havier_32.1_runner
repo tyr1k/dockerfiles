@@ -2,7 +2,7 @@ FROM <Docker_file_jetson_havier_32.1_builder> as builder
 FROM mdegans/l4t-base:r32.4.3-xavier
 ARG SERVICE_NAME=camera_leopard_gstreamer_server
 ENV SERVICE_NAME=${SERVICE_NAME}
-ARG USER=niias
+ARG USER=user
 
 RUN rm -rf /etc/apt/sources.list.d/nvidia-l4t-apt-source.list && apt update && apt install -y gstreamer1.0-tools libssl1.0.0 libgstreamer1.0-0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav libgstrtspserver-1.0-0 libjansson4              
 RUN echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/nvidia-tegra.conf && ldconfig \
@@ -37,7 +37,7 @@ COPY --from=builder \
 ENV LD_LIBRARY_PATH=/usr/lib:/usr/local/lib/:/usr/lib/aarch64-linux-gnu/tegra
 RUN sed -i 's/\bsudo\b//g' /etc/systemd/nv.sh && ./etc/systemd/nv.sh
 RUN useradd -m $USER && usermod -aG video,plugdev $USER
-COPY  --chown=niias:niias ./${SERVICE_NAME} /home/${USER}/
+COPY  --chown=user:user ./${SERVICE_NAME} /home/${USER}/
 WORKDIR /home/${USER}
 
 USER $USER
