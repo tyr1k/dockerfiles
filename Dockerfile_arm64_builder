@@ -27,8 +27,8 @@ RUN  touch /etc/ssh/ssh_known_hosts; \
      chown root:root /etc/ssh/ssh_known_hosts && \
      sed -i /^StrictHostKeyChecking/d /etc/ssh/ssh_config; \
      echo StrictHostKeyChecking no >> /etc/ssh/ssh_config  && \
-     ssh-keyscan bb.niias > /etc/ssh/ssh_known_hosts
-RUN --mount=type=ssh git clone -b release  --depth 1 --recursive ssh://git@bb.niias:7999/elsd/zcm.git
+     ssh-keyscan bb.example > /etc/ssh/ssh_known_hosts
+RUN --mount=type=ssh git clone -b release  --depth 1 --recursive ssh://git@bb.example:7999/elsd/zcm.git
 RUN cd /opt/zcm \
                     && cd /opt/zcm \
     && ./waf configure \
@@ -44,7 +44,7 @@ RUN cd /opt/zcm \
     &&./waf build \
     && ./waf install \
     && rm -rf /opt/zcm
-RUN --mount=type=ssh git clone -b master --depth 1 --recursive ssh://git@bb.niias:7999/tool/nlohmann_json.git
+RUN --mount=type=ssh git clone -b master --depth 1 --recursive ssh://git@bb.example:7999/tool/nlohmann_json.git
 RUN cd /opt/nlohmann_json \
     && mkdir build \
     && cd build \
